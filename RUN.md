@@ -55,8 +55,8 @@ Run only one Tilewise process at a time. Check with
 
 ## Running now
 
-- Tournament version: commit `028aba8` (strategy params from `376ccb0`).
-- `run.sh` PID 4075647 (process group 4075647), started 2026-11-07 23:07:32 EST on linuxbox from `~/Code/hackathons/scrabblebot-bot/bot`, logging to `bot/bot.log`.
+- Tournament version: bot code of commit `028aba8`, which is `376ccb0`'s strategy plus logging and `restart.flag` (HEAD `13e5571` reverts a later hybrid back to it). The node process inside run.sh restarted onto it at 23:14:14 EST, right after match 47091 ended.
+- `run.sh` PID 4075647 (process group 4075647), started 2026-11-07 23:07:32 EST on linuxbox from `~/Code/hackathons/scrabblebot-bot/bot`, logging to `bot/bot.log`. A `restart.flag` restart keeps this PID; only the node child changes.
 - Registered for tournament 2 by itself at 23:07 (tournament_entry 80, bot 325).
 - Restart command, only right after a match ends (or use `touch restart.flag`):
 
