@@ -53,6 +53,16 @@ kill -- -$(cat bot.pid)    # kills run.sh and the node process (one process grou
 Run only one Tilewise process at a time. Check with
 `ps -eo pid,args | grep "src/index.ts" | grep -v grep`.
 
-## Currently running
+## Running now
 
-The current PID is in `bot.pid`. It was started at the time recorded in the "Running now" note at the end of this file.
+- Tournament version: commit `028aba8` (strategy params from `376ccb0`).
+- `run.sh` PID 4075647 (process group 4075647), started 2026-11-07 23:07:32 EST on linuxbox from `~/Code/hackathons/scrabblebot-bot/bot`, logging to `bot/bot.log`.
+- Registered for tournament 2 by itself at 23:07 (tournament_entry 80, bot 325).
+- Restart command, only right after a match ends (or use `touch restart.flag`):
+
+```sh
+cd ~/Code/hackathons/scrabblebot-bot/bot
+kill -- -$(cat bot.pid); setsid nohup env BOT_NAME=Tilewise ./run.sh > bot.log 2>&1 < /dev/null & echo $! > bot.pid
+```
+
+Stellar (bot 342) runs separately from `~/Code/hackathons/scrabblebot-bot-stellar`. Never use `pkill -f` patterns such as `src/index.ts`, `tsx` or `run.sh`, because they match both bots.
