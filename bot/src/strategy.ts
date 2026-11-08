@@ -14,17 +14,31 @@ export const BAG: Record<string, number> = {
   Y: 2, Z: 1,
 };
 
+// Median clearing price per letter on the live server, last 464 matches
+// before the HackUTD tournament (2026-11-07).
+export const MARKET_PRICE: Record<string, number> = {
+  A: 11, B: 17, C: 18, D: 14, E: 11, F: 20, G: 13, H: 21, I: 10, J: 31, K: 24,
+  L: 11, M: 17, N: 11, O: 10, P: 17, Q: 26, R: 11, S: 12, T: 10, U: 11, V: 18,
+  W: 19, X: 33, Y: 22, Z: 39,
+};
+
 // Tunable knobs. Defaults are the simulator's best (see RUN.md).
 export const PARAMS = {
   playLen: 7, // before the endgame, only play words at least this long (3x)
   cashAt: 4, // bag_total at or below this: play every word we can, best first
+  midBag: 20, // bag_total at or below this: play words of `midLen`+
+  midLen: 7,
+  lateBag: 10, // bag_total at or below this: play words of `lateLen`+
+  lateLen: 6,
   lowBalance: 8, // below this balance, also play words of `lowLen`+ to refill
   lowLen: 5,
-  gainW: 0.7, // weight on the immediate rise in best-word score
-  faceMult: 2, // weight on face value as future long-word value
-  base: 3, // flat value for any useful letter
+  gainW: 0.4, // weight on the immediate rise in best-word score
+  faceMult: 0.5, // weight on face value as future long-word value
+  base: 1, // flat value for any useful letter
+  mkt: 0.7, // weight on the live market price as future value
   richRef: 2.5, // balance per remaining auction at which bids start scaling up
   lastUseful: 2, // bag_total below this: a won letter can't be played in time
+  endSpend: 1, // endgame bid on a letter with no immediate use, x balance/(bag+1)
 };
 export type Params = typeof PARAMS;
 
@@ -164,7 +178,10 @@ export function decideBid(ctx: BidContext): number {
     // letter that raises what we can cash in now.
     if (!idx) return 0;
     const gain = planTotal(idx, withL) - planTotal(idx, counts);
-    return gain > 0 ? bal : 0;
+    if (gain > 0) return bal;
+    // Money is worthless after the match; a letter may still pair with a
+    // later one, and winning it keeps it from an opponent.
+    return Math.min(bal, Math.round((bal * P.endSpend) / (bag + 1)));
   }
 
   let gain = 0;
@@ -174,7 +191,7 @@ export function decideBid(ctx: BidContext): number {
     gain = Math.max(0, after - before);
   }
 
-  let future = face * P.faceMult;
+  let future = face * P.faceMult + P.mkt * (MARKET_PRICE[ctx.letter] ?? 11);
   const vowels = counts[0]! + counts[4]! + counts[8]! + counts[14]! + counts[20]!;
   const tiles = counts.reduce((a, b) => a + b, 0);
   const isVowel = "AEIOU".includes(ctx.letter);
@@ -210,7 +227,8 @@ export function chooseWord(ctx: WordContext): string | null {
   const counts = toCounts(ctx.myRack);
   const bag = ctx.bagTotal ?? 0; // unknown: treat as endgame, play
   if (bag <= P.cashAt) return bestWord(idx, counts)?.word ?? null;
-  const long = bestWord(idx, counts, P.playLen);
+  const minLen = bag <= P.lateBag ? P.lateLen : bag <= P.midBag ? P.midLen : P.playLen;
+  const long = bestWord(idx, counts, minLen);
   if (long) return long.word;
   if ((ctx.myBalance ?? 100) < P.lowBalance) {
     return bestWord(idx, counts, P.lowLen)?.word ?? null;

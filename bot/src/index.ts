@@ -361,6 +361,13 @@ function onConnect(conn: DbConnection, identity: Identity, token: string) {
         console.log(
           `[${BOT_NAME}] RESULT match ${neu.id}: score ${p?.score} bal ${p?.balance} | table ${all.join(",")}`,
         );
+        // `touch restart.flag` asks for a restart at the next match end,
+        // so new code never cuts into a match. run.sh starts it again.
+        if (fs.existsSync("restart.flag")) {
+          fs.unlinkSync("restart.flag");
+          console.log(`[${BOT_NAME}] restart.flag found; exiting for restart`);
+          process.exit(0);
+        }
         console.log(`[${BOT_NAME}] match ${neu.id} ended; rejoining lobby`);
         joinLobby(conn);
       }

@@ -9,7 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
-  BAG, LETTER_VALUE, PARAMS, type Params, bestWord, chooseWord, decideBid,
+  BAG, LETTER_VALUE, MARKET_PRICE, PARAMS, type Params, bestWord, chooseWord, decideBid,
   indexFor, toCounts,
 } from "./strategy.js";
 
@@ -37,6 +37,7 @@ function rand() {
 const randInt = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
 
 interface Player {
+  won?: number;
   name: string;
   rack: Map<string, number>;
   balance: number;
@@ -124,11 +125,8 @@ function simBot(name: string, kind: "Cheapskate" | "ValueBidder" | "Aggressive")
 }
 
 // Mean price paid per letter on the live server, 2026-11-07 (60k auctions).
-const LIVE_PRICE: Record<string, number> = {
-  A: 10.8, B: 16.1, C: 17, D: 13.6, E: 11, F: 18.9, G: 12.6, H: 20.2, I: 10.2,
-  J: 27.9, K: 23.1, L: 10.8, M: 16.8, N: 10.6, O: 10.1, P: 16.2, Q: 26, R: 11,
-  S: 11.9, T: 10.2, U: 10.1, V: 16.7, W: 18, X: 30.4, Y: 20.4, Z: 36.2,
-};
+const LIVE_PRICE = MARKET_PRICE;
+const MARKET_MINLEN = Number(process.env.SIM_MARKET_MINLEN ?? 7);
 // A stand-in for the live field: bids near the live price, plays 5+ words.
 function market(name: string): Player {
   const p: Player = {
@@ -140,7 +138,7 @@ function market(name: string): Player {
       const out: string[] = [];
       const r = new Map(p.rack);
       for (;;) {
-        const f = bestWord(idx, toCounts(r), bag <= 4 ? 2 : 5);
+        const f = bestWord(idx, toCounts(r), bag <= 4 ? 2 : MARKET_MINLEN);
         if (!f) return out;
         out.push(f.word);
         take(r, f.word);
@@ -209,22 +207,27 @@ export function playMatch(players: Player[]) {
       const paid = bids[1] ? bids[1].a : Math.min(1, bids[0]!.a);
       const w = players[winner]!;
       w.balance -= paid;
+      w.won = (w.won ?? 0) + 1;
       w.rack.set(letter, (w.rack.get(letter) ?? 0) + 1);
     }
     if (bag.length === 0) break; // match ended as this auction closed
     players.forEach((p, i) => doPlays(p, i === winner));
   }
+  WON = players.map((p) => p.won ?? 0);
   return players.map((p) => p.score);
 }
+let WON: number[] = [];
 const DICTSET = new Set(DICT);
 
 type Make = (name: string) => Player;
 function league(label: string, lineup: Make[], n: number, focus = 0) {
   const totals = lineup.map(() => 0);
   const wins = lineup.map(() => 0);
+  let tilesWon = 0;
   for (let m = 0; m < n; m++) {
     const ps = lineup.map((mk, i) => mk(`p${i}`));
     const s = playMatch(ps);
+    tilesWon += WON[focus]!;
     const top = Math.max(...s);
     s.forEach((v, i) => {
       totals[i]! += v;
@@ -232,7 +235,7 @@ function league(label: string, lineup: Make[], n: number, focus = 0) {
     });
   }
   const row = (i: number) => `${(totals[i]! / n).toFixed(1)} pts, ${((100 * wins[i]!) / n).toFixed(0)}% wins`;
-  console.log(`${label}: focus ${row(focus)} | others ${lineup.map((_, i) => (i === focus ? "" : row(i))).filter(Boolean).join("; ")}`);
+  console.log(`${label}: focus ${row(focus)}, ${(tilesWon / n).toFixed(1)} tiles | others ${lineup.map((_, i) => (i === focus ? "" : row(i))).filter(Boolean).join("; ")}`);
   return { mean: totals[focus]! / n, win: wins[focus]! / n };
 }
 
@@ -256,6 +259,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const fixed: Partial<Params> = JSON.parse(process.argv[5] ?? "{}");
     for (const [k, vals] of grid) {
       for (const v of vals) league(`${k}=${v}`, [mk({ ...fixed, [k]: v }), ...markets], N);
+    }
+  } else if (mode === "field") {
+    // Focus variants vs a field of 5 bots running our code with other params.
+    const grid: [keyof Params, number[]][] = JSON.parse(process.argv[4]!);
+    const field: Partial<Params> = JSON.parse(process.argv[5] ?? "{}");
+    const fixed: Partial<Params> = JSON.parse(process.argv[6] ?? "{}");
+    const f = [0, 1, 2, 3, 4].map(() => mk(field));
+    for (const [k, vals] of grid) {
+      for (const v of vals) league(`${k}=${v}`, [mk({ ...fixed, [k]: v }), ...f], N);
     }
   } else if (mode === "report") {
     league("starter vs 5 sims", [starters[0]!, ...sims], N);
