@@ -354,12 +354,15 @@ function onConnect(conn: DbConnection, identity: Identity, token: string) {
       );
       if (wasIn) {
         const p = participantForMatch(conn, neu.id);
+        const tilesWon = Array.from(conn.db.auctionResult.iter()).filter(
+          (r) => r.matchId === neu.id && r.winnerBotId === myBotId,
+        ).length;
         const all = Array.from(conn.db.matchParticipant.iter())
           .filter((x) => x.matchId === neu.id)
           .map((x) => Number(x.score))
           .sort((a, b) => b - a);
         console.log(
-          `[${BOT_NAME}] RESULT match ${neu.id}: score ${p?.score} bal ${p?.balance} | table ${all.join(",")}`,
+          `[${BOT_NAME}] RESULT match ${neu.id}: score ${p?.score} bal ${p?.balance} tiles won ${tilesWon} | table ${all.join(",")}`,
         );
         // `touch restart.flag` asks for a restart at the next match end,
         // so new code never cuts into a match. run.sh starts it again.

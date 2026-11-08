@@ -36,6 +36,14 @@ tail -f bot.log | grep -v "→"          # bids, words, results
 grep -E "WORD|RESULT" bot.log           # words played with rewards, final scores
 ```
 
+## Restart without cutting into a match
+
+```sh
+touch restart.flag
+```
+
+At the next match end the bot sees the flag, deletes it and exits. `run.sh` then starts it again with the current code within about 5 seconds. Use this for every code change; a plain kill mid-match loses every auction until it reconnects.
+
 ## Stop it
 
 ```sh
