@@ -32,10 +32,10 @@ export const PARAMS = {
   lateLen: 6,
   lowBalance: 8, // below this balance, also play words of `lowLen`+ to refill
   lowLen: 5,
-  gainW: 0.4, // weight on the immediate rise in best-word score
-  faceMult: 0.5, // weight on face value as future long-word value
-  base: 1, // flat value for any useful letter
-  mkt: 0.7, // weight on the live market price as future value
+  gainW: 0.5, // weight on the immediate rise in best-word score
+  faceMult: 1.3, // weight on face value as future long-word value
+  base: 2, // flat value for any useful letter
+  mkt: 0.5, // weight on the live market price as future value
   richRef: 2.5, // balance per remaining auction at which bids start scaling up
   lastUseful: 2, // bag_total below this: a won letter can't be played in time
   endSpend: 1, // endgame bid on a letter with no immediate use, x balance/(bag+1)
