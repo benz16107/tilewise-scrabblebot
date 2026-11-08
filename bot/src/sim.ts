@@ -123,6 +123,33 @@ function simBot(name: string, kind: "Cheapskate" | "ValueBidder" | "Aggressive")
   return p;
 }
 
+// Mean price paid per letter on the live server, 2026-11-07 (60k auctions).
+const LIVE_PRICE: Record<string, number> = {
+  A: 10.8, B: 16.1, C: 17, D: 13.6, E: 11, F: 18.9, G: 12.6, H: 20.2, I: 10.2,
+  J: 27.9, K: 23.1, L: 10.8, M: 16.8, N: 10.6, O: 10.1, P: 16.2, Q: 26, R: 11,
+  S: 11.9, T: 10.2, U: 10.1, V: 16.7, W: 18, X: 30.4, Y: 20.4, Z: 36.2,
+};
+// A stand-in for the live field: bids near the live price, plays 5+ words.
+function market(name: string): Player {
+  const p: Player = {
+    name, rack: new Map(), balance: 100, score: 0,
+    bid(letter) {
+      return Math.min(p.balance, Math.round(LIVE_PRICE[letter]! * (0.7 + 0.6 * rand())));
+    },
+    play(bag) {
+      const out: string[] = [];
+      const r = new Map(p.rack);
+      for (;;) {
+        const f = bestWord(idx, toCounts(r), bag <= 4 ? 2 : 5);
+        if (!f) return out;
+        out.push(f.word);
+        take(r, f.word);
+      }
+    },
+  };
+  return p;
+}
+
 function ours(name: string, params: Params): Player {
   const p: Player = {
     name, rack: new Map(), balance: 100, score: 0,
@@ -214,12 +241,23 @@ const sims: Make[] = [
   (n) => simBot(n, "Cheapskate"), (n) => simBot(n, "ValueBidder"), (n) => simBot(n, "Aggressive"),
   (n) => simBot(n, "ValueBidder"), (n) => simBot(n, "Aggressive"),
 ];
+const markets: Make[] = [0, 1, 2, 3, 4].map(() => (n: string) => market(n));
 const starters: Make[] = [0, 1, 2, 3, 4].map(() => (n: string) => starter(n));
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const N = Number(process.argv[2] ?? 300);
   const mode = process.argv[3] ?? "report";
-  if (mode === "report") {
+  if (mode === "market") {
+    league("starter vs 5 market", [starters[0]!, ...markets], N);
+    league("ours vs 5 market", [mk({}), ...markets], N);
+    league("ours x2 vs 4 market", [mk({}), mk({}), ...markets.slice(0, 4)], N);
+  } else if (mode === "mtune") {
+    const grid: [keyof Params, number[]][] = JSON.parse(process.argv[4]!);
+    const fixed: Partial<Params> = JSON.parse(process.argv[5] ?? "{}");
+    for (const [k, vals] of grid) {
+      for (const v of vals) league(`${k}=${v}`, [mk({ ...fixed, [k]: v }), ...markets], N);
+    }
+  } else if (mode === "report") {
     league("starter vs 5 sims", [starters[0]!, ...sims], N);
     league("ours vs 5 sims", [mk({}), ...sims], N);
     league("starter vs 5 starters", [starters[0]!, ...starters], N);

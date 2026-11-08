@@ -17,13 +17,13 @@ export const BAG: Record<string, number> = {
 // Tunable knobs. Defaults are the simulator's best (see RUN.md).
 export const PARAMS = {
   playLen: 7, // before the endgame, only play words at least this long (3x)
-  cashAt: 6, // bag_total at or below this: play every word we can, best first
+  cashAt: 4, // bag_total at or below this: play every word we can, best first
   lowBalance: 8, // below this balance, also play words of `lowLen`+ to refill
   lowLen: 5,
-  gainW: 0.35, // weight on the immediate rise in best-word score
-  faceMult: 1.6, // weight on face value as future long-word value
-  base: 1, // flat value for any useful letter
-  richRef: 4, // balance per remaining auction at which bids start scaling up
+  gainW: 0.7, // weight on the immediate rise in best-word score
+  faceMult: 2, // weight on face value as future long-word value
+  base: 3, // flat value for any useful letter
+  richRef: 2.5, // balance per remaining auction at which bids start scaling up
   lastUseful: 2, // bag_total below this: a won letter can't be played in time
 };
 export type Params = typeof PARAMS;

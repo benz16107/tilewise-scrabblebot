@@ -276,11 +276,8 @@ function onConnect(conn: DbConnection, identity: Identity, token: string) {
               );
               process.exit(1);
             }
-            const bot = conn.db.bot.id.find(myBotId);
-            console.log(
-              `[${BOT_NAME}] claimed credential for bot '${bot?.name ?? "?"}' (id ${myBotId})`,
-            );
-            bootstrapActivity(conn);
+            console.log(`[${BOT_NAME}] claimed credential for bot id ${myBotId}`);
+            subscribeMine(conn);
           }, 1000);
           return;
         } else {
@@ -291,13 +288,21 @@ function onConnect(conn: DbConnection, identity: Identity, token: string) {
         }
       }
 
-      const bot = conn.db.bot.id.find(myBotId);
-      console.log(
-        `[${BOT_NAME}] acting as bot '${bot?.name ?? "?"}' (id ${myBotId})`,
-      );
-      bootstrapActivity(conn);
+      console.log(`[${BOT_NAME}] acting as bot id ${myBotId}`);
+      subscribeMine(conn);
     })
-    .subscribeToAllTables();
+    .onError((ctx) => {
+      console.error(`[${BOT_NAME}] base subscription failed: ${ctx.event}`);
+      process.exit(4);
+    })
+    // Small tables only. subscribeToAllTables pulls the server's whole
+    // history (millions of auction rows) and stalls the bot.
+    .subscribe([
+      "SELECT * FROM bot_credential",
+      "SELECT * FROM tournament",
+      "SELECT * FROM lobby",
+      "SELECT * FROM lobby_member",
+    ]);
 
   conn.db.auction.onInsert((_ctx: EventContext, a) => {
     if (a.status.tag === "Open") tryBid(conn, a.id, a.matchId, a.letter);
@@ -319,9 +324,14 @@ function onConnect(conn: DbConnection, identity: Identity, token: string) {
   });
   conn.db.auctionResult.onInsert((_ctx, r) => {
     if (myBotId === null) return;
+    // Only our running matches; the subscription replays every past result.
+    if (participantForMatch(conn, r.matchId) === null) return;
+    if (conn.db.matchState.id.find(r.matchId)?.status.tag !== "Running") return;
     const winner =
       r.winnerBotId !== undefined && r.winnerBotId !== null
-        ? String(r.winnerBotId)
+        ? r.winnerBotId === myBotId
+          ? "ME"
+          : String(r.winnerBotId)
         : "no-bid";
     console.log(
       `[${BOT_NAME}] match ${r.matchId} auction ${r.auctionId} '${r.letter}' → bot ${winner} paid ${r.paid}`,
@@ -356,6 +366,32 @@ function onConnect(conn: DbConnection, identity: Identity, token: string) {
       }
     }
   });
+}
+
+// Everything about this bot's own matches, filtered on the server.
+function subscribeMine(conn: DbConnection) {
+  const B = String(myBotId);
+  const inMine = (t: string) =>
+    `SELECT ${t}.* FROM ${t} JOIN match_participant mp ON ${t}.match_id = mp.match_id WHERE mp.bot_id = ${B}`;
+  conn
+    .subscriptionBuilder()
+    .onApplied(() => {
+      console.log(`[${BOT_NAME}] match subscription applied`);
+      bootstrapActivity(conn);
+    })
+    .onError((ctx) => {
+      console.error(`[${BOT_NAME}] match subscription failed: ${ctx.event}`);
+      process.exit(4);
+    })
+    .subscribe([
+      `SELECT * FROM match_participant WHERE bot_id = ${B}`,
+      `SELECT ms.* FROM match_state ms JOIN match_participant mp ON ms.id = mp.match_id WHERE mp.bot_id = ${B}`,
+      inMine("auction"),
+      inMine("auction_result"),
+      "SELECT * FROM my_rack",
+      `SELECT * FROM word_play WHERE bot_id = ${B}`,
+      `SELECT * FROM tournament_entry WHERE bot_id = ${B}`,
+    ]);
 }
 
 function joinLobby(conn: DbConnection) {
